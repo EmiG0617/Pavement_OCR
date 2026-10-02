@@ -130,6 +130,100 @@
     image.src = URL.createObjectURL(file);
   }
 
+  function prepareOcrImages(image) {
+    const sourceWidth = image.naturalWidth || image.width;
+    const sourceHeight = image.naturalHeight || image.height;
+    if (!sourceWidth || !sourceHeight) {
+      throw new Error("The image has no readable dimensions. Please choose another image.");
+    }
+
+    const scale = Math.min(2.5, 2600 / Math.max(sourceWidth, sourceHeight));
+    const width = Math.max(1, Math.round(sourceWidth * scale));
+    const height = Math.max(1, Math.round(sourceHeight * scale));
+    const enhanced = document.createElement("canvas");
+    enhanced.width = width;
+    enhanced.height = height;
+    const context = enhanced.getContext("2d", { willReadFrequently: true });
+    context.drawImage(image, 0, 0, width, height);
+
+    const imageData = context.getImageData(0, 0, width, height);
+    const histogram = new Uint32Array(256);
+    const pixels = imageData.data;
+    for (let index = 0; index < pixels.length; index += 4) {
+      const gray = Math.round(0.299 * pixels[index] + 0.587 * pixels[index + 1] + 0.114 * pixels[index + 2]);
+      histogram[gray] += 1;
+      pixels[index] = gray;
+      pixels[index + 1] = gray;
+      pixels[index + 2] = gray;
+    }
+
+    const pixelCount = width * height;
+    const percentileLevel = (fraction) => {
+      const target = pixelCount * fraction;
+      let count = 0;
+      for (let level = 0; level < histogram.length; level += 1) {
+        count += histogram[level];
+        if (count >= target) return level;
+      }
+      return 255;
+    };
+    const low = percentileLevel(0.01);
+    const high = percentileLevel(0.99);
+    const contrastRange = Math.max(1, high - low);
+    histogram.fill(0);
+    for (let index = 0; index < pixels.length; index += 4) {
+      const normalized = Math.max(0, Math.min(255, Math.round(16 + ((pixels[index] - low) * 223) / contrastRange)));
+      histogram[normalized] += 1;
+      pixels[index] = normalized;
+      pixels[index + 1] = normalized;
+      pixels[index + 2] = normalized;
+    }
+
+    let total = 0;
+    for (let level = 0; level < histogram.length; level += 1) {
+      total += level * histogram[level];
+    }
+    let backgroundWeight = 0;
+    let backgroundSum = 0;
+    let threshold = 127;
+    let bestVariance = 0;
+    for (let level = 0; level < histogram.length; level += 1) {
+      backgroundWeight += histogram[level];
+      if (backgroundWeight === 0) continue;
+      const foregroundWeight = pixelCount - backgroundWeight;
+      if (foregroundWeight === 0) break;
+      backgroundSum += level * histogram[level];
+      const meanBackground = backgroundSum / backgroundWeight;
+      const meanForeground = (total - backgroundSum) / foregroundWeight;
+      const variance = backgroundWeight * foregroundWeight * (meanBackground - meanForeground) ** 2;
+      if (variance > bestVariance) {
+        bestVariance = variance;
+        threshold = level;
+      }
+    }
+
+    let darkPixels = 0;
+    for (let level = 0; level <= threshold; level += 1) darkPixels += histogram[level];
+    const invert = darkPixels > pixelCount / 2;
+    const binary = document.createElement("canvas");
+    binary.width = width;
+    binary.height = height;
+    const binaryContext = binary.getContext("2d");
+    const binaryData = binaryContext.createImageData(width, height);
+    for (let index = 0; index < pixels.length; index += 4) {
+      const gray = pixels[index];
+      const value = (gray > threshold) !== invert ? 255 : 0;
+      binaryData.data[index] = value;
+      binaryData.data[index + 1] = value;
+      binaryData.data[index + 2] = value;
+      binaryData.data[index + 3] = 255;
+    }
+    binaryContext.putImageData(binaryData, 0, 0);
+    context.putImageData(imageData, 0, 0);
+
+    return [enhanced, binary];
+  }
+
   async function recognizeText() {
     if (!state.image) {
       notify("Capture an equipment screen or choose an image before running OCR.", true);
@@ -144,22 +238,38 @@
       if (!window.Tesseract) {
         throw new Error("The OCR library did not load. Check your internet connection and reload the page.");
       }
+      const images = prepareOcrImages(state.image);
       state.worker = await Tesseract.createWorker("eng", 1, {
         logger: (progress) => {
           if (progress.status) elements.ocrStatus.textContent = progress.status;
           if (typeof progress.progress === "number") {
-            elements.progress.value = progress.progress;
-            elements.ocrPercent.textContent = `${Math.round(progress.progress * 100)}%`;
+            const passIndex = elements.progress.dataset.pass === "2" ? 1 : 0;
+            const overallProgress = (passIndex + progress.progress) / images.length;
+            elements.progress.value = overallProgress;
+            elements.ocrPercent.textContent = `${Math.round(overallProgress * 100)}%`;
           }
         },
       });
-      const { data } = await state.worker.recognize(state.image);
-      state.ocrLines = data.text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+      const results = [];
+      for (let index = 0; index < images.length; index += 1) {
+        elements.progress.dataset.pass = String(index + 1);
+        elements.ocrStatus.textContent = index === 0 ? "Reading enhanced image…" : "Checking high-contrast image…";
+        await state.worker.setParameters({
+          tessedit_pageseg_mode: index === 0 ? "6" : "11",
+        });
+        const { data } = await state.worker.recognize(images[index]);
+        results.push(data);
+      }
+      const bestResult = results.reduce((best, current) =>
+        (current.confidence ?? 0) > (best.confidence ?? 0) ? current : best
+      );
+      state.ocrLines = bestResult.text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
       renderOcrLines();
       renderPdfFields();
       elements.ocrStatus.textContent = "Recognition complete";
       elements.progress.value = 1;
       elements.ocrPercent.textContent = "100%";
+      elements.progress.removeAttribute("data-pass");
       if (state.ocrLines.length === 0) {
         notify("No text was detected. Try a sharper, brighter image with the screen filling more of the frame.", true);
       } else {
