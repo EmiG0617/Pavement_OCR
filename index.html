@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#102e35" />
+    <title>Screen to Form | Equipment OCR</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#" aria-label="Screen to Form home">
+        <span class="brand-mark" aria-hidden="true">SF</span>
+        <span>Screen to Form</span>
+      </a>
+      <span class="privacy-note"><span class="privacy-dot"></span>Processing stays on this device</span>
+    </header>
+
+    <main>
+      <section class="intro">
+        <p class="eyebrow">EQUIPMENT DATA, WITHOUT THE RE-TYPING</p>
+        <h1>From equipment screen<br />to completed form.</h1>
+        <p class="intro-copy">Capture a screen, check the recognized text, map it to your fillable PDF, and download the completed form.</p>
+      </section>
+
+      <div class="steps" aria-label="Workflow">
+        <div class="step active" data-step-indicator="capture"><span>1</span> Capture</div>
+        <div class="step" data-step-indicator="review"><span>2</span> Review text</div>
+        <div class="step" data-step-indicator="form"><span>3</span> Fill PDF</div>
+      </div>
+
+      <section class="workspace" aria-label="Equipment screen OCR and PDF form workflow">
+        <div class="panel capture-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="panel-kicker">STEP 1</p>
+              <h2>Capture the screen</h2>
+            </div>
+            <span class="panel-icon" aria-hidden="true">01</span>
+          </div>
+          <p class="panel-description">Hold the equipment display steady and keep the text in focus.</p>
+
+          <div class="camera-frame" id="camera-frame">
+            <video id="camera-video" autoplay playsinline muted aria-label="Camera preview"></video>
+            <img id="image-preview" alt="Selected equipment screen" hidden />
+            <div class="camera-placeholder" id="camera-placeholder">
+              <span class="camera-symbol" aria-hidden="true">◉</span>
+              <span>Camera preview will appear here</span>
+            </div>
+            <span class="frame-corner corner-tl"></span>
+            <span class="frame-corner corner-tr"></span>
+            <span class="frame-corner corner-bl"></span>
+            <span class="frame-corner corner-br"></span>
+          </div>
+          <canvas id="capture-canvas" hidden></canvas>
+
+          <div class="button-row">
+            <button class="button button-primary" id="camera-button" type="button">Start camera</button>
+            <button class="button button-secondary" id="capture-button" type="button" disabled>Capture image</button>
+          </div>
+          <label class="button button-upload" for="image-input">Choose an image instead</label>
+          <input id="image-input" type="file" accept="image/*" capture="environment" hidden />
+          <p class="field-hint">Camera access requires HTTPS or localhost. Images are not uploaded.</p>
+        </div>
+
+        <div class="panel review-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="panel-kicker">STEP 2</p>
+              <h2>Review recognized text</h2>
+            </div>
+            <span class="panel-icon" aria-hidden="true">02</span>
+          </div>
+          <p class="panel-description">Run OCR, then correct any values before using them in the PDF.</p>
+
+          <button class="button button-primary full-width" id="ocr-button" type="button" disabled>Recognize text</button>
+          <div class="progress-wrap" id="ocr-progress-wrap" hidden>
+            <div class="progress-label"><span id="ocr-status">Preparing OCR…</span><span id="ocr-percent">0%</span></div>
+            <progress id="ocr-progress" max="1" value="0"></progress>
+          </div>
+          <div class="text-results" id="text-results">
+            <div class="empty-state">
+              <span class="empty-symbol" aria-hidden="true">Aa</span>
+              <p>Your recognized lines will appear here.</p>
+            </div>
+          </div>
+          <p class="field-hint">Edit a line by selecting it and changing its text. Only the corrected values are used.</p>
+        </div>
+
+        <div class="panel form-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="panel-kicker">STEP 3</p>
+              <h2>Fill your PDF</h2>
+            </div>
+            <span class="panel-icon" aria-hidden="true">03</span>
+          </div>
+          <p class="panel-description">Choose a fillable PDF, then map recognized values to its text fields.</p>
+
+          <label class="pdf-dropzone" for="pdf-input" id="pdf-dropzone">
+            <span class="upload-symbol" aria-hidden="true">↑</span>
+            <strong id="pdf-file-name">Choose a fillable PDF</strong>
+            <span>PDF files with AcroForm text fields</span>
+            <input id="pdf-input" type="file" accept="application/pdf,.pdf" hidden />
+          </label>
+          <div id="pdf-fields" class="pdf-fields">
+            <div class="empty-state compact">
+              <p>PDF text fields will appear here after you choose a form.</p>
+            </div>
+          </div>
+          <button class="button button-primary full-width" id="download-button" type="button" disabled>Fill and download PDF</button>
+          <p class="field-hint">Your PDF is processed locally and is not uploaded.</p>
+        </div>
+      </section>
+
+      <div class="notice" id="notice" role="status" aria-live="polite" hidden></div>
+    </main>
+
+    <footer>
+      <span>Screen to Form</span>
+      <span>Camera OCR · Fillable PDF</span>
+    </footer>
+  </body>
+</html>
