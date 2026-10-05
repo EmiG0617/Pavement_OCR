@@ -41,7 +41,7 @@
             </div>
             <span class="panel-icon" aria-hidden="true">01</span>
           </div>
-          <p class="panel-description">Capture the full display, then adjust the OCR area if you want to focus on part of the image.</p>
+          <p class="panel-description">Live OCR reads the camera preview. Press Capture to save a frame and freeze the recognized text.</p>
 
           <div class="camera-frame" id="camera-frame">
             <video id="camera-video" autoplay playsinline muted aria-label="Camera preview"></video>
@@ -65,7 +65,7 @@
 
           <div class="button-row">
             <button class="button button-primary" id="camera-button" type="button">Start camera</button>
-            <button class="button button-secondary" id="capture-button" type="button" disabled>Capture image</button>
+            <button class="button button-secondary" id="capture-button" type="button" disabled>Capture</button>
           </div>
           <label class="button button-upload" for="image-input">Choose an image instead</label>
           <input id="image-input" type="file" accept="image/*" hidden />
@@ -84,7 +84,7 @@
             </div>
             <span class="panel-icon" aria-hidden="true">02</span>
           </div>
-          <p class="panel-description">Run OCR, then correct any values before using them in the PDF.</p>
+          <p class="panel-description">Text updates while the camera is running. Capture a frame to keep the latest results, or recognize a selected image.</p>
 
           <button class="button button-primary full-width" id="ocr-button" type="button" disabled>Recognize text</button>
           <div class="progress-wrap" id="ocr-progress-wrap" hidden>

@@ -5,6 +5,7 @@ A browser-based prototype for reading equipment screens and filling existing PDF
 ## Features
 
 - Capture an equipment display with a device camera or select an image from the device's photos.
+- Read text from the live camera preview, then capture a frame to pause recognition and keep the latest completed text results.
 - Start OCR with the whole image selected, or adjust the boundary handles to focus recognition on a smaller region.
 - Enhance image contrast and compare English OCR results from grayscale and high-contrast versions with Tesseract.js.
 - Review and edit recognized lines before they are used.

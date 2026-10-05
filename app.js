@@ -31,6 +31,8 @@
     crop: { x: 0, y: 0, width: 1, height: 1 },
     cropDrag: null,
     worker: null,
+    liveOcrRunId: 0,
+    liveOcrPromise: null,
     pdfBytes: null,
     pdfName: "",
     fieldNames: [],
@@ -59,6 +61,7 @@
     elements.video.classList.remove("visible");
     elements.placeholder.hidden = true;
     elements.captureButton.disabled = true;
+    elements.cameraButton.disabled = false;
     elements.ocrButton.disabled = false;
     elements.cropControls.hidden = false;
     renderCropSelection();
@@ -193,6 +196,8 @@
   }
 
   function stopCamera() {
+    const cameraWasRunning = Boolean(state.stream);
+    state.liveOcrRunId += 1;
     if (state.stream) {
       state.stream.getTracks().forEach((track) => track.stop());
       state.stream = null;
@@ -206,6 +211,11 @@
     elements.cropSelection.hidden = !state.image;
     elements.cropControls.hidden = !state.image;
     elements.preview.parentElement.classList.toggle("has-image", Boolean(state.image));
+    if (cameraWasRunning) {
+      elements.progressWrap.hidden = true;
+      elements.ocrPercent.textContent = "";
+      elements.ocrStatus.textContent = "Live OCR paused";
+    }
     if (state.image) renderCropSelection();
   }
 
@@ -219,6 +229,12 @@
         audio: false,
         video: { facingMode: { ideal: "environment" } },
       });
+      state.image = null;
+      state.crop = { x: 0, y: 0, width: 1, height: 1 };
+      state.ocrLines = [];
+      renderOcrLines("Looking for text in the camera preview…");
+      renderPdfFields();
+      elements.ocrButton.disabled = true;
       elements.video.srcObject = state.stream;
       elements.video.classList.add("visible");
       elements.preview.hidden = true;
@@ -229,6 +245,13 @@
       elements.captureButton.disabled = false;
       elements.cameraButton.textContent = "Stop camera";
       await elements.video.play();
+      elements.progressWrap.hidden = false;
+      elements.progress.value = 0;
+      elements.ocrPercent.textContent = "";
+      elements.ocrStatus.textContent = "Starting live OCR…";
+      const runId = state.liveOcrRunId + 1;
+      state.liveOcrRunId = runId;
+      state.liveOcrPromise = readLiveCamera(runId);
     } catch (error) {
       stopCamera();
       if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
@@ -247,11 +270,88 @@
     }
     elements.canvas.width = video.videoWidth;
     elements.canvas.height = video.videoHeight;
-    elements.canvas.getContext("2d").drawImage(video, 0, 0);
+    elements.canvas.getContext("2d").drawImage(video, 0, 0, elements.canvas.width, elements.canvas.height);
+    const source = elements.canvas.toDataURL("image/jpeg", 0.92);
+    const liveOcrPromise = state.liveOcrPromise;
+    stopCamera();
+    elements.cameraButton.disabled = true;
     const image = new Image();
-    image.onload = () => setPreview(elements.canvas.toDataURL("image/jpeg", 0.92), elements.canvas);
-    image.onerror = () => notify("The captured image could not be prepared. Please try again.", true);
-    image.src = elements.canvas.toDataURL("image/jpeg", 0.92);
+    image.onload = async () => {
+      try {
+        if (liveOcrPromise) await liveOcrPromise;
+        setPreview(source, image);
+        elements.progressWrap.hidden = false;
+        elements.progress.value = 1;
+        elements.ocrPercent.textContent = "";
+        elements.ocrStatus.textContent = "Capture saved · OCR frozen";
+        notify("Frame captured. Live OCR is paused; review the frozen results.");
+      } catch (error) {
+        elements.cameraButton.disabled = false;
+        notify(`Could not finish live OCR: ${error.message || error}`, true);
+      }
+    };
+    image.onerror = () => {
+      elements.cameraButton.disabled = false;
+      notify("The captured image could not be prepared. Please try again.", true);
+    };
+    image.src = source;
+  }
+
+  async function readLiveCamera(runId) {
+    let worker;
+    const isCurrentRun = () => runId === state.liveOcrRunId && Boolean(state.stream);
+    try {
+      if (!window.Tesseract) {
+        throw new Error("The OCR library did not load. Check your internet connection and reload the page.");
+      }
+      worker = await Tesseract.createWorker("eng", 1);
+      if (!isCurrentRun()) return;
+      state.worker = worker;
+      await worker.setParameters({ tessedit_pageseg_mode: "6" });
+
+      while (isCurrentRun()) {
+        const video = elements.video;
+        if (!video.videoWidth || !video.videoHeight) {
+          await new Promise((resolve) => window.setTimeout(resolve, 200));
+          continue;
+        }
+        const scale = Math.min(1, 1600 / Math.max(video.videoWidth, video.videoHeight));
+        const frame = document.createElement("canvas");
+        frame.width = Math.max(1, Math.round(video.videoWidth * scale));
+        frame.height = Math.max(1, Math.round(video.videoHeight * scale));
+        frame.getContext("2d").drawImage(video, 0, 0, frame.width, frame.height);
+        elements.ocrStatus.textContent = "Reading live camera…";
+        elements.progress.removeAttribute("value");
+        const { data } = await worker.recognize(frame);
+        if (!isCurrentRun()) break;
+
+        const lines = data.text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+        const text = lines.join("\n");
+        if (text !== state.ocrLines.join("\n")) {
+          state.ocrLines = lines;
+          renderOcrLines("Looking for text in the camera preview…");
+          renderPdfFields();
+        }
+        elements.ocrStatus.textContent = lines.length
+          ? `Live OCR · ${lines.length} line${lines.length === 1 ? "" : "s"} found`
+          : "Live OCR · looking for text…";
+        await new Promise((resolve) => window.setTimeout(resolve, 250));
+      }
+    } catch (error) {
+      if (isCurrentRun()) {
+        elements.ocrStatus.textContent = "Live OCR could not be completed";
+        notify(`Live OCR failed: ${error.message || error}`, true);
+      }
+    } finally {
+      if (worker) {
+        if (state.worker === worker) state.worker = null;
+        await worker.terminate();
+      }
+      if (runId === state.liveOcrRunId) {
+        elements.progressWrap.hidden = true;
+        elements.ocrPercent.textContent = "";
+      }
+    }
   }
 
   function loadImageFile(file) {
@@ -426,13 +526,13 @@
     }
   }
 
-  function renderOcrLines() {
+  function renderOcrLines(emptyMessage = "No text was detected. Try another image.") {
     elements.textResults.replaceChildren();
     if (state.ocrLines.length === 0) {
       const empty = document.createElement("div");
       empty.className = "empty-state";
       const text = document.createElement("p");
-      text.textContent = "No text was detected. Try another image.";
+      text.textContent = emptyMessage;
       empty.append(text);
       elements.textResults.append(empty);
       return;
