@@ -131,7 +131,11 @@
 
     <footer>
       <span>Screen to Form</span>
-      <span>Camera OCR · Fillable PDF</span>
+      <script>
+        const today = new Date();
+        const formattedDate = today.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+      </script>
+      <span>Last updated October ${formattedDate}</span>
     </footer>
   </body>
 </html>
