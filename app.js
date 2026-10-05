@@ -5,6 +5,10 @@
     video: document.querySelector("#camera-video"),
     preview: document.querySelector("#image-preview"),
     placeholder: document.querySelector("#camera-placeholder"),
+    cropSelection: document.querySelector("#crop-selection"),
+    cropControls: document.querySelector("#crop-controls"),
+    cropSummary: document.querySelector("#crop-summary"),
+    cropReset: document.querySelector("#crop-reset"),
     canvas: document.querySelector("#capture-canvas"),
     imageInput: document.querySelector("#image-input"),
     ocrButton: document.querySelector("#ocr-button"),
@@ -24,6 +28,8 @@
   const state = {
     stream: null,
     image: null,
+    crop: { x: 0, y: 0, width: 1, height: 1 },
+    cropDrag: null,
     worker: null,
     pdfBytes: null,
     pdfName: "",
@@ -46,13 +52,135 @@
   function setPreview(source, image) {
     stopCamera();
     state.image = image;
+    state.crop = { x: 0, y: 0, width: 1, height: 1 };
+    elements.preview.parentElement.classList.add("has-image");
     elements.preview.src = source;
     elements.preview.hidden = false;
     elements.video.classList.remove("visible");
     elements.placeholder.hidden = true;
     elements.captureButton.disabled = true;
     elements.ocrButton.disabled = false;
+    elements.cropControls.hidden = false;
+    renderCropSelection();
     setStep("review");
+  }
+
+  function getImageDisplayRect() {
+    const frame = elements.preview.parentElement;
+    const frameWidth = frame.clientWidth;
+    const frameHeight = frame.clientHeight;
+    const imageWidth = state.image.naturalWidth || state.image.width;
+    const imageHeight = state.image.naturalHeight || state.image.height;
+    const scale = Math.min(frameWidth / imageWidth, frameHeight / imageHeight);
+    const width = imageWidth * scale;
+    const height = imageHeight * scale;
+    return {
+      left: (frameWidth - width) / 2,
+      top: (frameHeight - height) / 2,
+      width,
+      height,
+    };
+  }
+
+  function renderCropSelection() {
+    if (!state.image) {
+      elements.cropSelection.hidden = true;
+      return;
+    }
+    const imageRect = getImageDisplayRect();
+    elements.cropSelection.style.left = `${imageRect.left + state.crop.x * imageRect.width}px`;
+    elements.cropSelection.style.top = `${imageRect.top + state.crop.y * imageRect.height}px`;
+    elements.cropSelection.style.width = `${state.crop.width * imageRect.width}px`;
+    elements.cropSelection.style.height = `${state.crop.height * imageRect.height}px`;
+    const isWholeImage = state.crop.x === 0 && state.crop.y === 0 &&
+      state.crop.width === 1 && state.crop.height === 1;
+    elements.cropSummary.textContent = isWholeImage
+      ? "OCR area: whole image. Drag a corner to select a smaller area."
+      : "Custom OCR area selected. Drag a corner to adjust or move the frame.";
+    elements.cropSelection.hidden = false;
+  }
+
+  function getCropPoint(event) {
+    const frameRect = elements.preview.parentElement.getBoundingClientRect();
+    const imageRect = getImageDisplayRect();
+    return {
+      x: Math.max(0, Math.min(1, (event.clientX - frameRect.left - imageRect.left) / imageRect.width)),
+      y: Math.max(0, Math.min(1, (event.clientY - frameRect.top - imageRect.top) / imageRect.height)),
+    };
+  }
+
+  function resizeCrop(crop, handle, point) {
+    const right = crop.x + crop.width;
+    const bottom = crop.y + crop.height;
+    const minSize = 0.04;
+    let left = crop.x;
+    let top = crop.y;
+    let nextRight = right;
+    let nextBottom = bottom;
+
+    if (handle.includes("w")) left = Math.min(point.x, right - minSize);
+    if (handle.includes("e")) nextRight = Math.max(point.x, left + minSize);
+    if (handle.includes("n")) top = Math.min(point.y, bottom - minSize);
+    if (handle.includes("s")) nextBottom = Math.max(point.y, top + minSize);
+
+    left = Math.max(0, left);
+    top = Math.max(0, top);
+    nextRight = Math.min(1, nextRight);
+    nextBottom = Math.min(1, nextBottom);
+    return {
+      x: left,
+      y: top,
+      width: nextRight - left,
+      height: nextBottom - top,
+    };
+  }
+
+  function onCropPointerDown(event) {
+    if (!state.image || event.button !== 0) return;
+    const handle = event.target.closest("[data-crop-handle]")?.dataset.cropHandle;
+    state.cropDrag = {
+      pointerId: event.pointerId,
+      handle: handle || "move",
+      start: getCropPoint(event),
+      crop: { ...state.crop },
+    };
+    event.preventDefault();
+    elements.cropSelection.setPointerCapture(event.pointerId);
+  }
+
+  function onCropPointerMove(event) {
+    if (!state.cropDrag || state.cropDrag.pointerId !== event.pointerId) return;
+    const point = getCropPoint(event);
+    if (state.cropDrag.handle === "move") {
+      const { crop, start } = state.cropDrag;
+      state.crop = {
+        ...crop,
+        x: Math.max(0, Math.min(1 - crop.width, crop.x + point.x - start.x)),
+        y: Math.max(0, Math.min(1 - crop.height, crop.y + point.y - start.y)),
+      };
+    } else {
+      state.crop = resizeCrop(state.cropDrag.crop, state.cropDrag.handle, point);
+    }
+    renderCropSelection();
+  }
+
+  function onCropPointerUp(event) {
+    if (state.cropDrag?.pointerId === event.pointerId) state.cropDrag = null;
+  }
+
+  function onCropKeyDown(event) {
+    const handle = event.target.closest("[data-crop-handle]")?.dataset.cropHandle;
+    if (!handle || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+    event.preventDefault();
+    const amount = event.shiftKey ? 0.05 : 0.01;
+    const point = {
+      x: state.crop.x + (handle.includes("w") ? 0 : state.crop.width) +
+        (event.key === "ArrowLeft" ? -amount : event.key === "ArrowRight" ? amount : 0),
+      y: state.crop.y + (handle.includes("n") ? 0 : state.crop.height) +
+        (event.key === "ArrowUp" ? -amount : event.key === "ArrowDown" ? amount : 0),
+    };
+    state.crop = resizeCrop(state.crop, handle, point);
+    renderCropSelection();
   }
 
   function setStep(stepName) {
@@ -75,6 +203,10 @@
     elements.placeholder.hidden = Boolean(state.image);
     elements.captureButton.disabled = true;
     elements.cameraButton.textContent = "Start camera";
+    elements.cropSelection.hidden = !state.image;
+    elements.cropControls.hidden = !state.image;
+    elements.preview.parentElement.classList.toggle("has-image", Boolean(state.image));
+    if (state.image) renderCropSelection();
   }
 
   async function startCamera() {
@@ -91,6 +223,9 @@
       elements.video.classList.add("visible");
       elements.preview.hidden = true;
       elements.placeholder.hidden = true;
+      elements.cropSelection.hidden = true;
+      elements.cropControls.hidden = true;
+      elements.preview.parentElement.classList.remove("has-image");
       elements.captureButton.disabled = false;
       elements.cameraButton.textContent = "Stop camera";
       await elements.video.play();
@@ -130,21 +265,25 @@
     image.src = URL.createObjectURL(file);
   }
 
-  function prepareOcrImages(image) {
+  function prepareOcrImages(image, crop) {
     const sourceWidth = image.naturalWidth || image.width;
     const sourceHeight = image.naturalHeight || image.height;
     if (!sourceWidth || !sourceHeight) {
       throw new Error("The image has no readable dimensions. Please choose another image.");
     }
 
-    const scale = Math.min(2.5, 2600 / Math.max(sourceWidth, sourceHeight));
-    const width = Math.max(1, Math.round(sourceWidth * scale));
-    const height = Math.max(1, Math.round(sourceHeight * scale));
+    const sourceX = Math.floor(crop.x * sourceWidth);
+    const sourceY = Math.floor(crop.y * sourceHeight);
+    const cropWidth = Math.max(1, Math.min(sourceWidth - sourceX, Math.ceil(crop.width * sourceWidth)));
+    const cropHeight = Math.max(1, Math.min(sourceHeight - sourceY, Math.ceil(crop.height * sourceHeight)));
+    const scale = Math.min(2.5, 2600 / Math.max(cropWidth, cropHeight));
+    const width = Math.max(1, Math.round(cropWidth * scale));
+    const height = Math.max(1, Math.round(cropHeight * scale));
     const enhanced = document.createElement("canvas");
     enhanced.width = width;
     enhanced.height = height;
     const context = enhanced.getContext("2d", { willReadFrequently: true });
-    context.drawImage(image, 0, 0, width, height);
+    context.drawImage(image, sourceX, sourceY, cropWidth, cropHeight, 0, 0, width, height);
 
     const imageData = context.getImageData(0, 0, width, height);
     const histogram = new Uint32Array(256);
@@ -238,7 +377,7 @@
       if (!window.Tesseract) {
         throw new Error("The OCR library did not load. Check your internet connection and reload the page.");
       }
-      const images = prepareOcrImages(state.image);
+      const images = prepareOcrImages(state.image, state.crop);
       state.worker = await Tesseract.createWorker("eng", 1, {
         logger: (progress) => {
           if (progress.status) elements.ocrStatus.textContent = progress.status;
@@ -470,6 +609,18 @@
     else startCamera();
   });
   elements.captureButton.addEventListener("click", captureImage);
+  elements.cropSelection.addEventListener("pointerdown", onCropPointerDown);
+  elements.cropSelection.addEventListener("pointermove", onCropPointerMove);
+  elements.cropSelection.addEventListener("pointerup", onCropPointerUp);
+  elements.cropSelection.addEventListener("pointercancel", onCropPointerUp);
+  elements.cropSelection.addEventListener("keydown", onCropKeyDown);
+  elements.cropReset.addEventListener("click", () => {
+    state.crop = { x: 0, y: 0, width: 1, height: 1 };
+    renderCropSelection();
+  });
+  window.addEventListener("resize", () => {
+    if (state.image && !state.stream) renderCropSelection();
+  });
   elements.imageInput.addEventListener("change", (event) => {
     loadImageFile(event.target.files[0]);
     event.target.value = "";

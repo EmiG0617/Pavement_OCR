@@ -41,7 +41,7 @@
             </div>
             <span class="panel-icon" aria-hidden="true">01</span>
           </div>
-          <p class="panel-description">Frame the display closely, keep it straight, and avoid glare or motion blur.</p>
+          <p class="panel-description">Capture the full display, then adjust the OCR area if you want to focus on part of the image.</p>
 
           <div class="camera-frame" id="camera-frame">
             <video id="camera-video" autoplay playsinline muted aria-label="Camera preview"></video>
@@ -49,6 +49,12 @@
             <div class="camera-placeholder" id="camera-placeholder">
               <span class="camera-symbol" aria-hidden="true">◉</span>
               <span>Camera preview will appear here</span>
+            </div>
+            <div class="crop-selection" id="crop-selection" hidden aria-label="OCR image boundary">
+              <button class="crop-handle crop-handle-nw" type="button" data-crop-handle="nw" aria-label="Adjust top-left image boundary"></button>
+              <button class="crop-handle crop-handle-ne" type="button" data-crop-handle="ne" aria-label="Adjust top-right image boundary"></button>
+              <button class="crop-handle crop-handle-sw" type="button" data-crop-handle="sw" aria-label="Adjust bottom-left image boundary"></button>
+              <button class="crop-handle crop-handle-se" type="button" data-crop-handle="se" aria-label="Adjust bottom-right image boundary"></button>
             </div>
             <span class="frame-corner corner-tl"></span>
             <span class="frame-corner corner-tr"></span>
@@ -62,8 +68,12 @@
             <button class="button button-secondary" id="capture-button" type="button" disabled>Capture image</button>
           </div>
           <label class="button button-upload" for="image-input">Choose an image instead</label>
-          <input id="image-input" type="file" accept="image/*" capture="environment" hidden />
-          <p class="field-hint">Camera access requires HTTPS or localhost. For best results, fill the frame with the display and use bright, even lighting.</p>
+          <input id="image-input" type="file" accept="image/*" hidden />
+          <div class="crop-controls" id="crop-controls" hidden>
+            <span id="crop-summary">OCR area: whole image. Drag a corner to select a smaller area.</span>
+            <button class="crop-reset" id="crop-reset" type="button">Use whole image</button>
+          </div>
+          <p class="field-hint">Choose an image to browse your photos, or use the camera. Camera access requires HTTPS or localhost.</p>
         </div>
 
         <div class="panel review-panel">
@@ -87,7 +97,7 @@
               <p>Your recognized lines will appear here.</p>
             </div>
           </div>
-          <p class="field-hint">OCR tries enhanced and high-contrast versions of the image. Small, blurry, angled, or reflective text may still need a closer retake. Check every value before filling the PDF.</p>
+          <p class="field-hint">OCR uses the selected area (the whole image by default) and tries enhanced and high-contrast versions. Small, blurry, angled, or reflective text may still need a retake. Check every value before filling the PDF.</p>
         </div>
 
         <div class="panel form-panel">

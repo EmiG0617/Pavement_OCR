@@ -229,6 +229,64 @@ h2 {
   font-size: 10px;
 }
 
+.camera-frame.has-image .frame-corner { display: none; }
+
+.crop-selection {
+  position: absolute;
+  z-index: 2;
+  border: 2px solid #d6f2df;
+  box-shadow: 0 0 0 9999px rgba(10, 28, 26, .48);
+  cursor: move;
+  touch-action: none;
+}
+
+.crop-handle {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #17685e;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, .35);
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.crop-handle-nw { top: -12px; left: -12px; }
+.crop-handle-ne { top: -12px; right: -12px; }
+.crop-handle-sw { bottom: -12px; left: -12px; }
+.crop-handle-se { right: -12px; bottom: -12px; }
+
+.crop-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+  color: #698079;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+#crop-controls[hidden], #crop-selection[hidden] { display: none; }
+
+.crop-reset {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid #dce8e1;
+  border-radius: 7px;
+  color: #3c6259;
+  background: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.crop-reset:hover { background: #f2f8f4; }
+.crop-reset:focus-visible { outline: 3px solid #9dd3c0; outline-offset: 2px; }
+
 .camera-symbol { color: #77948b; font-size: 25px; }
 
 .frame-corner {
@@ -422,6 +480,7 @@ footer {
   .panel { padding: 19px; }
   .panel-description { min-height: auto; }
   .camera-frame { height: 205px; }
+  .crop-controls { align-items: flex-start; }
   .text-results, .pdf-fields { min-height: 150px; }
   .empty-state, .empty-state.compact { min-height: 150px; }
   footer { margin-top: 24px; }

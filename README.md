@@ -4,7 +4,8 @@ A browser-based prototype for reading equipment screens and filling existing PDF
 
 ## Features
 
-- Capture an equipment display with a device camera or select an image.
+- Capture an equipment display with a device camera or select an image from the device's photos.
+- Start OCR with the whole image selected, or adjust the boundary handles to focus recognition on a smaller region.
 - Enhance image contrast and compare English OCR results from grayscale and high-contrast versions with Tesseract.js.
 - Review and edit recognized lines before they are used.
 - Open a fillable PDF, map recognized text (or manually entered values) to its AcroForm text fields, and download a completed copy.
@@ -22,4 +23,4 @@ Open `index.html` from the local server in a current desktop or mobile browser.
 - Field names are shown as-is. Check each value and field assignment before downloading.
 - OCR and PDF editing happen in the browser. Requests for the libraries, OCR language data, and web fonts go to their respective CDNs; the screen image and PDF file are not sent to those services.
 - Automatic value suggestions are best-effort only. Always review the mapped values before downloading.
-- OCR quality depends on the source image. Frame the display closely, keep it in focus and straight, and avoid glare; enhanced preprocessing cannot restore detail from blurry or very small text.
+- OCR quality depends on the source image. Keep the display in focus and straight, avoid glare, and select just the display when other content is distracting; enhanced preprocessing cannot restore detail from blurry or very small text.
