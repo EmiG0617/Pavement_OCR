@@ -131,11 +131,12 @@
 
     <footer>
       <span>Screen to Form</span>
-      <script>
-        const today = new Date();
-        const formattedDate = today.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-      </script>
-      <span>Last updated October ${formattedDate}</span>
+      <span id="last-modified">Last Modified</span>
     </footer>
+    <script>
+      const lastModifiedDate = new Date(document.lastModified);
+      document.querySelector("#last-modified").textContent =
+        `Last Modified ${lastModifiedDate.toLocaleDateString("en-US")}`;
+    </script>
   </body>
 </html>
